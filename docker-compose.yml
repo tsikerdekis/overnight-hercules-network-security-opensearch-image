@@ -1,0 +1,116 @@
+version: '3'
+services:
+  logrotate:
+    image: alpine:latest
+    volumes:
+      - ./suricata-logrotate.conf:/etc/logrotate.d/suricata-logrotate.conf
+      - /var/log/suricata:/var/log/suricata
+    command: ["sh", "-c", "apk add logrotate && while true; do logrotate /etc/logrotate.d/suricata-logrotate.conf; sleep 900; done"]
+    restart: unless-stopped
+  suricata:
+    image: jasonish/suricata:latest
+    container_name: suricata
+    cap_add:
+      - net_admin
+      - net_raw
+      - sys_nice
+    volumes:
+      - ./suricata.yaml:/etc/suricata/suricata.yaml
+      - ./suricata:/var/log/suricata/
+      - ./suricata-logrotate.conf:/etc/logrotate.d/suricata-logrotate.conf
+    network_mode: "host"
+    command: suricata -c /etc/suricata/suricata.yaml -i ${NETWORK_INTERFACE}
+  fluent-bit:
+    container_name: fluent-bit
+    image: fluent/fluent-bit
+    volumes:
+      - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
+      - ./parser.conf:/fluent-bit/etc/parser.conf
+      - ./GeoLite2-City.mmdb:/etc/GeoLite2-City.mmdb
+      - ./suricata/:/var/log/suricata/
+    networks:
+      - opensearch-net
+    depends_on:
+      - suricata
+      - opensearch-node1
+      - opensearch-node2
+#    environment:
+#      - FLB_LOG_LEVEL=debug  # Set Fluent Bit log level to debug
+  opensearch-node1:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch-node1
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node1
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true  # along with the memlock settings below, disables swapping
+      - OPENSEARCH_JAVA_OPTS=-Xms${SYSTEM_RAM} -Xmx${SYSTEM_RAM}  # minimum and maximum Java heap size, recommend setting both to 50% of system RAM
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}    # Sets the demo admin user password when using demo configuration, required for OpenSearch 2.12 and higher
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536  # maximum number of open files for the OpenSearch user, set to at least 65536 on modern systems
+        hard: 65536
+    volumes:
+      - /mnt/data/opensearch-data1:/usr/share/opensearch/data
+    ports:
+      - 9200:9200
+      - 9600:9600  # required for Performance Analyzer
+    networks:
+      - opensearch-net
+  opensearch-node2:
+    image: opensearchproject/opensearch:latest
+    container_name: opensearch-node2
+    environment:
+      - cluster.name=opensearch-cluster
+      - node.name=opensearch-node2
+      - discovery.seed_hosts=opensearch-node1,opensearch-node2
+      - cluster.initial_cluster_manager_nodes=opensearch-node1,opensearch-node2
+      - bootstrap.memory_lock=true
+      - OPENSEARCH_JAVA_OPTS=-Xms${SYSTEM_RAM}      -Xmx${SYSTEM_RAM}
+      - OPENSEARCH_INITIAL_ADMIN_PASSWORD=${OPENSEARCH_INITIAL_ADMIN_PASSWORD}
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - /mnt/data/opensearch-data2:/usr/share/opensearch/data
+    networks:
+      - opensearch-net
+  opensearch-dashboards:
+    image: opensearchproject/opensearch-dashboards:latest
+    container_name: opensearch-dashboards
+    ports:
+      - 5601:5601
+    expose:
+      - '5601'
+    environment:
+      OPENSEARCH_HOSTS: '["https://opensearch-node1:9200","https://opensearch-node2:9200"]'
+    networks:
+      - opensearch-net
+    depends_on:
+      - opensearch-node1
+      - opensearch-node2
+
+volumes:
+  opensearch-data1:
+  opensearch-data2:
+
+networks:
+#  suricata-bridge:
+#    driver: bridge
+#    ipam:
+#      config:
+#        - subnet: 192.168.0.0/24
+  opensearch-net:
+#    driver: macvlan
+#    driver_opts:
+#      parent: enp2s0
+#    ipam:
+#      driver: default
