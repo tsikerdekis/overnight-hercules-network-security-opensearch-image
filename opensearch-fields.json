@@ -1,0 +1,24 @@
+PUT /_index_template/logstash_template
+{
+  "index_patterns": ["logstash-*"],
+  "template": {
+    "mappings": {
+      "properties": {
+        "src_ip": {
+          "type": "ip"
+        },
+        "dest_ip": {
+          "type": "ip"
+        },
+        "geoip": {
+          "properties": {
+            "geohash": {
+              "type": "geo_point"
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
