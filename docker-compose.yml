@@ -34,7 +34,7 @@ services:
     depends_on:
       - suricata
       - opensearch-node1
-      - opensearch-node2
+#      - opensearch-node2
 #    environment:
 #      - FLB_LOG_LEVEL=debug  # Set Fluent Bit log level to debug
   opensearch-node1:
