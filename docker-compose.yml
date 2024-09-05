@@ -25,7 +25,7 @@ services:
     image: fluent/fluent-bit
     volumes:
       - ./fluent-bit.conf:/fluent-bit/etc/fluent-bit.conf
-      - ./create_geohash.lua:/fluent-bit/etc/create_geohash.lua
+      # - ./create_geohash.lua:/fluent-bit/etc/create_geohash.lua
       - ./combine_bytes.lua:/fluent-bit/etc/combine_bytes.lua
       - ./parser.conf:/fluent-bit/etc/parser.conf
       - ./GeoLite2-City.mmdb:/etc/GeoLite2-City.mmdb
