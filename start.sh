@@ -46,5 +46,21 @@ else
     echo "fluent-bit.conf not found!"
 fi
 
+# Download GeoLite2-City.mmdb if it does not exist
+if [ ! -f "GeoLite2-City.mmdb" ]; then
+    echo "GeoLite2-City.mmdb not found! Attempting to download..."
+    wget -O GeoLite2-City.mmdb https://git.io/GeoLite2-City.mmdb
+
+    # Check if the download was successful
+    if [ ! -f "GeoLite2-City.mmdb" ]; then
+        echo "Failed to download GeoLite2-City.mmdb. Please download it manually."
+        exit 1
+    else
+        echo "Successfully downloaded GeoLite2-City.mmdb."
+    fi
+else
+    echo "GeoLite2-City.mmdb already exists."
+fi
+
 # Start Docker Compose
 sudo docker compose up -d
