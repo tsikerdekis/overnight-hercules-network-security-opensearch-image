@@ -1,5 +1,7 @@
 #!/bin/bash
 
+sudo docker compose down
+
 # Function to prompt for variable if not set in .env file
 prompt_if_empty() {
     local var_name=$1
@@ -61,6 +63,74 @@ if [ ! -f "GeoLite2-City.mmdb" ]; then
 else
     echo "GeoLite2-City.mmdb already exists."
 fi
+
+sudo docker compose pull
+
+# Check if the opensearch-data1 directory exists
+if [ ! -d "opensearch-data1" ]; then
+    echo "First run detected. Bringing up opensearch-node1."
+
+    # Start only opensearch-node1
+    sudo docker compose up -d opensearch-node1
+
+    echo "Waiting for AccessDeniedException error in logs..."
+
+    # Wait for the specific log message
+    until sudo docker logs opensearch-node1 2>&1 | grep -q "java.nio.file.AccessDeniedException: /usr/share/opensearch/data/nodes"; do
+        sleep 5
+    done
+
+    echo "Error detected. Stopping opensearch-node1..."
+
+    # Stop the opensearch-node1 container
+    sudo docker compose stop opensearch-node1
+
+    # Fix the permissions of the data folder
+    echo "Fixing permissions for opensearch-data1..."
+    sudo chmod -R 777 opensearch-data1
+
+    # Restart opensearch-node1
+    echo "Restarting opensearch-node1..."
+    sudo docker compose up -d opensearch-node1 opensearch-dashboards
+
+    # Wait for the node to initialize
+    echo "Waiting for 'Node initialized' in logs..."
+
+    until sudo docker logs opensearch-node1 2>&1 | grep -q "Node 'opensearch-node1' initialized"; do
+        sleep 5
+    done
+
+    echo "Node 'opensearch-node1' initialized. Proceeding with the next steps."
+
+  # Apply the field mappings using the opensearch-fields.json file
+  if [ -f "opensearch-fields.json" ]; then
+      echo "Applying index template from opensearch-fields.json..."
+
+      # Use curl to apply the index template
+      curl -X PUT "https://localhost:9200/_index_template/logstash_template" \
+        -u admin:$OPENSEARCH_INITIAL_ADMIN_PASSWORD \
+        -H "Content-Type: application/json" \
+        -d @opensearch-fields.json \
+        --insecure
+
+      if [ $? -eq 0 ]; then
+          echo "Index template successfully applied."
+      else
+          echo "Failed to apply the index template."
+          exit 1
+      fi
+  else
+      echo "opensearch-fields.json file not found!"
+      exit 1
+  fi
+
+  # Stop opensearch-node1 after applying the index template
+  sudo docker compose stop opensearch-node1 opensearch-dashboards
+
+fi
+
+# Start the full Docker Compose environment
+echo "Bringing up the full Docker Compose environment..."
 
 # Start Docker Compose
 sudo docker compose up -d
