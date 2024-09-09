@@ -39,7 +39,7 @@ services:
 #    environment:
 #      - FLB_LOG_LEVEL=debug  # Set Fluent Bit log level to debug
   opensearch-node1:
-    image: opensearchproject/opensearch:latest
+    image: opensearchproject/opensearch:2.16.0
     container_name: opensearch-node1
     environment:
       - cluster.name=opensearch-cluster
@@ -86,7 +86,7 @@ services:
 #    networks:
 #      - opensearch-net
   opensearch-dashboards:
-    image: opensearchproject/opensearch-dashboards:latest
+    image: opensearchproject/opensearch-dashboards:2.16.0
     container_name: opensearch-dashboards
     ports:
       - 5601:5601
