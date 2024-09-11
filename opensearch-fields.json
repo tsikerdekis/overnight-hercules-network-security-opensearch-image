@@ -1,14 +1,23 @@
-PUT /_index_template/logstash_template
 {
   "index_patterns": ["logstash-*"],
   "template": {
     "mappings": {
       "properties": {
         "src_ip": {
-          "type": "ip"
+          "type": "ip",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
         },
         "dest_ip": {
-          "type": "ip"
+          "type": "ip",
+          "fields": {
+            "keyword": {
+              "type": "keyword"
+            }
+          }
         },
         "geoip": {
           "properties": {
@@ -21,4 +30,3 @@ PUT /_index_template/logstash_template
     }
   }
 }
-
