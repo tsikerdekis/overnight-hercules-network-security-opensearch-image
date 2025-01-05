@@ -2,21 +2,61 @@
 
 sudo docker compose down
 
-# Function to prompt for variable if not set in .env file
 prompt_if_empty() {
     local var_name=$1
     local var_value=$2
     local prompt_message=$3
+    local validate_password=$4
 
     # If the variable is empty, prompt for it
-    if [ -z "$var_value" ]; then
+    while [ -z "$var_value" ]; do
         read -p "$prompt_message: " var_value
-        echo "$var_name=$var_value" >> .env
-    fi
 
-    # Export the variable to the environment
+        # Validate the password strength if required
+        if [ "$validate_password" = "true" ]; then
+            check_password_strength "$var_value"
+            if [ $? -ne 0 ]; then
+                echo "Password is too weak. Please try again."
+                var_value=""  # Reset to force re-prompt
+            fi
+        fi
+    done
+
+    # Save to .env and export the variable to the environment
+    echo "$var_name=$var_value" >> .env
     export $var_name=$var_value
 }
+
+install_zxcvbn() {
+    # Determine package manager
+    if [ -x "$(command -v apt)" ]; then
+        sudo apt update
+        sudo apt install -y python3-zxcvbn
+    elif [ -x "$(command -v yum)" ]; then
+        sudo yum install -y python3-zxcvbn
+    elif [ -x "$(command -v dnf)" ]; then
+        sudo dnf install -y python3-zxcvbn
+    else
+        echo "Unsupported package manager. Install python3-zxcvbn manually."
+        exit 1
+    fi
+}
+
+check_password_strength() {
+    local password=$1
+    local score=$(echo "$password" | python3 -c "import sys; from zxcvbn import zxcvbn; print(zxcvbn(sys.stdin.read().strip())['score'])")
+    if [ "$score" -ge 3 ]; then
+        return 0  # Strong password
+    else
+        return 1  # Weak password
+    fi
+}
+
+# Install zxcvbn if not already installed
+if ! python3 -c "import zxcvbn" &>/dev/null; then
+    echo "Installing python3-zxcvbn..."
+    install_zxcvbn
+fi
 
 # Load existing .env file if it exists
 if [ -f ".env" ]; then
@@ -26,7 +66,8 @@ fi
 # Prompt for environment variables if they are not set
 prompt_if_empty "NETWORK_INTERFACE" "$NETWORK_INTERFACE" "Enter the network interface"
 prompt_if_empty "SYSTEM_RAM" "$SYSTEM_RAM" "Enter the system RAM (e.g., 5000m)"
-prompt_if_empty "OPENSEARCH_INITIAL_ADMIN_PASSWORD" "$OPENSEARCH_INITIAL_ADMIN_PASSWORD" "Enter the OpenSearch admin password"
+prompt_if_empty "OPENSEARCH_INITIAL_ADMIN_PASSWORD" "$OPENSEARCH_INITIAL_ADMIN_PASSWORD" "Enter the OpenSearch admin password" "true"
+
 
 # Apply necessary system configurations
 sudo sysctl -w vm.max_map_count=262144
